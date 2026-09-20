@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mimie Doudou — Galerie Souvenirs</title>
+<style>
+  :root {
+    --bg-dark: #14120e;
+    --card-bg: #231f18;
+    --accent: #d4af37;
+    --accent-hover: #e5c158;
+    --text: #fdf7ec;
+    --text-muted: #b8af9e;
+    --border-color: rgba(255,255,255,0.1);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg-dark);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    min-height: 100vh;
+    padding-bottom: 90px;
+  }
+
+  header {
+    text-align: center;
+    padding: 24px 16px 16px;
+    background: linear-gradient(180deg, rgba(20,18,14,0.95) 0%, rgba(20,18,14,0.8) 80%, transparent 100%);
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    backdrop-filter: blur(12px);
+  }
+
+  header h1 {
+    font-size: clamp(1.3rem, 3.5vw, 1.9rem);
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    margin-bottom: 4px;
+  }
+
+  #count {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    margin-bottom: 12px;
+  }
+
+  /* Barre d'outils / boutons */
+  .toolbar {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .btn {
+    background: rgba(255,255,255,0.08);
+    color: var(--text);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    padding: 8px 16px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 0.2s, border-color 0.2s, transform 0.1s;
+  }
+
+  .btn:hover {
+    background: rgba(255,255,255,0.16);
+  }
+
+  .btn-accent {
+    background: var(--accent);
+    color: #14120e;
+    border: none;
+    font-weight: 600;
+  }
+
+  .btn-accent:hover {
+    background: var(--accent-hover);
+  }
+
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* Grille des vignettes */
+  #gallery {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 12px;
+    padding: 16px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  @media (min-width: 768px) {
+    #gallery {
+      grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+      gap: 16px;
+      padding: 24px;
+    }
+  }
+
+  .card {
+    background: var(--card-bg);
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+    aspect-ratio: 3 / 4;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s;
+    border: 2px solid transparent;
+  }
+
+  .card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+  }
+
+  .card.selected {
+    border-color: var(--accent);
+  }
+
+  .card img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  /* Pastille de coche (visible en mode sélection) */
+  .checkbox-badge {
+    display: none;
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.55);
+    border: 2px solid #fff;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 14px;
+    font-weight: bold;
+    backdrop-filter: blur(4px);
+    transition: all 0.2s ease;
+  }
+
+  body.selection-mode .checkbox-badge {
+    display: flex;
+  }
+
+  .card.selected .checkbox-badge {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #14120e;
+  }
+
+  .empty-state {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 80px 20px;
+    color: var(--text-muted);
+  }
+
+  /* Barre d'action flottante en bas lors de la sélection */
+  #action-bar {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: #1f1b14;
+    border: 1px solid rgba(212, 175, 55, 0.35);
+    border-radius: 30px;
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+    z-index: 50;
+    transition: transform 0.3s ease;
+  }
+
+  #action-bar.show {
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* Overlay de téléchargement (progression du zip) */
+  #progress-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  #progress-modal.active { display: flex; }
+
+  .progress-box {
+    background: #231f18;
+    border: 1px solid var(--border-color);
+    padding: 24px 32px;
+    border-radius: 12px;
+    text-align: center;
+    width: 90%;
+    max-width: 380px;
+  }
+
+  .progress-bar-bg {
+    width: 100%;
+    height: 10px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 5px;
+    overflow: hidden;
+    margin: 14px 0 8px;
+  }
+
+  .progress-bar-fill {
+    width: 0%;
+    height: 100%;
+    background: var(--accent);
+    transition: width 0.2s ease;
+  }
+
+  /* Visionneuse plein écran (Lightbox) */
+  #lightbox {
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 8, 6, 0.95);
+    z-index: 100;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(8px);
+  }
+
+  #lightbox.active { display: flex; }
+
+  #lb-img {
+    max-width: 90vw;
+    max-height: 82vh;
+    border-radius: 6px;
+    object-fit: contain;
+    user-select: none;
+  }
+
+  .lb-btn {
+    position: absolute;
+    background: rgba(255,255,255,0.12);
+    color: var(--text);
+    border: none;
+    border-radius: 50%;
+    width: 48px;
+    height: 48px;
+    font-size: 1.3rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, transform 0.2s;
+  }
+
+  .lb-btn:hover {
+    background: rgba(255,255,255,0.25);
+    transform: scale(1.06);
+  }
+
+  #lb-close { top: 20px; right: 20px; }
+  #lb-prev { left: 20px; }
+  #lb-next { right: 20px; }
+
+  #lb-download {
+    position: absolute;
+    bottom: 24px;
+    background: var(--accent);
+    color: #1a1712;
+    font-weight: 600;
+    border: none;
+    border-radius: 24px;
+    padding: 10px 22px;
+    font-size: 0.95rem;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  @media (max-width: 600px) {
+    .lb-btn { width: 40px; height: 40px; font-size: 1.1rem; }
+    #lb-prev { left: 8px; }
+    #lb-next { right: 8px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Mimie Doudou • 40 ans</h1>
+  <div id="count">Chargement des photos...</div>
+
+  <div class="toolbar">
+    <button id="btn-toggle-select" class="btn">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      Sélectionner
+    </button>
+    <button id="btn-download-all" class="btn btn-accent">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Tout télécharger (.zip)
+    </button>
+  </div>
+</header>
+
+<main id="gallery">
+  <div class="empty-state">En attente de photos...</div>
+</main>
+
+<!-- Barre d'action quand le mode sélection est actif -->
+<div id="action-bar">
+  <span id="selected-counter" style="font-size: 0.9rem; font-weight: 500;">0 sélectionnée(s)</span>
+  <button id="btn-select-all" class="btn" style="padding: 6px 12px; font-size: 0.8rem;">Tout cocher</button>
+  <button id="btn-download-selection" class="btn btn-accent" style="padding: 6px 14px; font-size: 0.85rem;" disabled>
+    Télécharger (.zip)
+  </button>
+</div>
+
+<!-- Modal de progression ZIP -->
+<div id="progress-modal">
+  <div class="progress-box">
+    <h3 id="progress-title" style="font-size: 1.1rem; margin-bottom: 6px;">Création de l'archive ZIP...</h3>
+    <div id="progress-text" style="font-size: 0.85rem; color: var(--text-muted);">Préparation...</div>
+    <div class="progress-bar-bg">
+      <div id="progress-bar" class="progress-bar-fill"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Visionneuse plein écran -->
+<div id="lightbox">
+  <button id="lb-close" class="lb-btn" title="Fermer (Échap)">✕</button>
+  <button id="lb-prev" class="lb-btn" title="Précédente">❮</button>
+  <img id="lb-img" alt="Aperçu photo">
+  <button id="lb-next" class="lb-btn" title="Suivante">❯</button>
+  <button id="lb-download">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+      <polyline points="7 10 12 15 17 10"></polyline>
+      <line x1="12" y1="15" x2="12" y2="3"></line>
+    </svg>
+    Télécharger cette photo
+  </button>
+</div>
+
+<!-- JSZip pour générer le fichier .zip côté client -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/12.15.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore-compat.js"></script>
+<script>
+(function(){
+  const firebaseConfig = {
+    apiKey: "AIzaSyAHCUcWse5QpNPxWQKYZqT-4elxIxkAO3s",
+    authDomain: "mimie-doudou-40-ans.firebaseapp.com",
+    projectId: "mimie-doudou-40-ans",
+    storageBucket: "mimie-doudou-40-ans.firebasestorage.app",
+    messagingSenderId: "745270670876",
+    appId: "1:745270670876:web:7bdadd220d43fd7ec691d9"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+
+  let photos = [];
+  let isSelectionMode = false;
+  let selectedIds = new Set();
+  let currentIndex = 0;
+
+  // DOM
+  const gallery = document.getElementById('gallery');
+  const countEl = document.getElementById('count');
+  const btnToggleSelect = document.getElementById('btn-toggle-select');
+  const btnDownloadAll = document.getElementById('btn-download-all');
+  const actionBar = document.getElementById('action-bar');
+  const selectedCounter = document.getElementById('selected-counter');
+  const btnSelectAll = document.getElementById('btn-select-all');
+  const btnDownloadSelection = document.getElementById('btn-download-selection');
+  
+  const lightbox = document.getElementById('lightbox');
+  const lbImg = document.getElementById('lb-img');
+  const btnClose = document.getElementById('lb-close');
+  const btnPrev = document.getElementById('lb-prev');
+  const btnNext = document.getElementById('lb-next');
+  const btnDownloadSingle = document.getElementById('lb-download');
+
+  const progressModal = document.getElementById('progress-modal');
+  const progressBar = document.getElementById('progress-bar');
+  const progressText = document.getElementById('progress-text');
+
+  // Rendu de la galerie
+  function renderGallery() {
+    if (photos.length === 0) {
+      gallery.innerHTML = '<div class="empty-state">Aucune photo pour le moment.</div>';
+      countEl.textContent = '0 photo';
+      btnDownloadAll.disabled = true;
+      return;
+    }
+
+    countEl.textContent = `${photos.length} photo${photos.length > 1 ? 's' : ''}`;
+    btnDownloadAll.disabled = false;
+    gallery.innerHTML = '';
+
+    photos.forEach((photo, idx) => {
+      const card = document.createElement('div');
+      card.className = `card ${selectedIds.has(photo.id) ? 'selected' : ''}`;
+      card.dataset.id = photo.id;
+      
+      const img = document.createElement('img');
+      img.src = photo.url;
+      img.loading = 'lazy';
+      img.alt = 'Souvenir Photobooth';
+
+      const badge = document.createElement('div');
+      badge.className = 'checkbox-badge';
+      badge.innerHTML = selectedIds.has(photo.id) ? '✓' : '';
+
+      card.appendChild(img);
+      card.appendChild(badge);
+
+      card.addEventListener('click', () => {
+        if (isSelectionMode) {
+          togglePhotoSelection(photo.id, card, badge);
+        } else {
+          openLightbox(idx);
+        }
+      });
+
+      gallery.appendChild(card);
+    });
+  }
+
+  // Gestion du mode sélection
+  function toggleSelectionMode(force) {
+    isSelectionMode = typeof force === 'boolean' ? force : !isSelectionMode;
+    document.body.classList.toggle('selection-mode', isSelectionMode);
+
+    if (isSelectionMode) {
+      btnToggleSelect.innerHTML = 'Annuler';
+      actionBar.classList.add('show');
+    } else {
+      btnToggleSelect.innerHTML = `
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        Sélectionner
+      `;
+      actionBar.classList.remove('show');
+      selectedIds.clear();
+      updateSelectedUI();
+    }
+  }
+
+  function togglePhotoSelection(id, card, badge) {
+    if (selectedIds.has(id)) {
+      selectedIds.delete(id);
+      card.classList.remove('selected');
+      badge.innerHTML = '';
+    } else {
+      selectedIds.add(id);
+      card.classList.add('selected');
+      badge.innerHTML = '✓';
+    }
+    updateSelectedUI();
+  }
+
+  function updateSelectedUI() {
+    selectedCounter.textContent = `${selectedIds.size} sélectionnée(s)`;
+    btnDownloadSelection.disabled = selectedIds.size === 0;
+
+    // Mise à jour visuelle des cartes déjà rendues
+    document.querySelectorAll('.card').forEach(c => {
+      const isSel = selectedIds.has(c.dataset.id);
+      c.classList.toggle('selected', isSel);
+      const b = c.querySelector('.checkbox-badge');
+      if (b) b.innerHTML = isSel ? '✓' : '';
+    });
+  }
+
+  btnToggleSelect.addEventListener('click', () => toggleSelectionMode());
+
+  btnSelectAll.addEventListener('click', () => {
+    if (selectedIds.size === photos.length) {
+      selectedIds.clear();
+      btnSelectAll.textContent = 'Tout cocher';
+    } else {
+      photos.forEach(p => selectedIds.add(p.id));
+      btnSelectAll.textContent = 'Tout décocher';
+    }
+    updateSelectedUI();
+  });
+
+  // Téléchargement groupé au format ZIP
+  async function downloadPhotosAsZip(photoList, zipFilename = 'photos-souvenirs.zip') {
+    if (photoList.length === 0) return;
+
+    progressModal.classList.add('active');
+    progressBar.style.width = '0%';
+    progressText.textContent = `0 / ${photoList.length} photo(s) récupérée(s)`;
+
+    const zip = new JSZip();
+    let completed = 0;
+
+    // Télécharge les images en parallèle par lots de 4 pour soulager le réseau
+    const BATCH_SIZE = 4;
+    for (let i = 0; i < photoList.length; i += BATCH_SIZE) {
+      const batch = photoList.slice(i, i + BATCH_SIZE);
+      await Promise.all(batch.map(async (photo, idx) => {
+        try {
+          const res = await fetch(photo.url);
+          const blob = await res.blob();
+          const fileName = `souvenir-${i + idx + 1}.jpg`;
+          zip.file(fileName, blob);
+        } catch (e) {
+          console.warn('Erreur lors du téléchargement de la photo', photo.url, e);
+        } finally {
+          completed++;
+          const percent = Math.round((completed / photoList.length) * 80);
+          progressBar.style.width = `${percent}%`;
+          progressText.textContent = `${completed} / ${photoList.length} photo(s) récupérée(s)`;
+        }
+      }));
+    }
+
+    progressText.textContent = "Compression de l'archive en cours...";
+    
+    // Génération du fichier ZIP
+    const content = await zip.generateAsync({ type: 'blob' }, (metadata) => {
+      const finalPercent = 80 + Math.round(metadata.percent * 0.2);
+      progressBar.style.width = `${finalPercent}%`;
+    });
+
+    // Déclenchement du téléchargement
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(content);
+    link.download = zipFilename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(link.href);
+
+    progressModal.classList.remove('active');
+  }
+
+  // Actions de téléchargement groupé
+  btnDownloadSelection.addEventListener('click', () => {
+    const list = photos.filter(p => selectedIds.has(p.id));
+    downloadPhotosAsZip(list, `selection-photos-${list.length}.zip`);
+  });
+
+  btnDownloadAll.addEventListener('click', () => {
+    if (confirm(`Télécharger l'intégralité des ${photos.length} photos dans un fichier ZIP ?`)) {
+      downloadPhotosAsZip(photos, 'toutes-les-photos-mimie.zip');
+    }
+  });
+
+  // Visionneuse (Lightbox)
+  function openLightbox(index) {
+    currentIndex = index;
+    updateLightboxImage();
+    lightbox.classList.add('active');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeLightbox() {
+    lightbox.classList.remove('active');
+    document.body.style.overflow = '';
+  }
+
+  function updateLightboxImage() {
+    lbImg.src = photos[currentIndex].url;
+  }
+
+  function showNext() {
+    currentIndex = (currentIndex + 1) % photos.length;
+    updateLightboxImage();
+  }
+
+  function showPrev() {
+    currentIndex = (currentIndex - 1 + photos.length) % photos.length;
+    updateLightboxImage();
+  }
+
+  // Téléchargement d'une seule photo
+  async function downloadSinglePhoto() {
+    const photo = photos[currentIndex];
+    btnDownloadSingle.disabled = true;
+    btnDownloadSingle.innerText = 'Téléchargement...';
+
+    try {
+      const res = await fetch(photo.url);
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `photo-souvenir-${currentIndex + 1}.jpg`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      window.open(photo.url, '_blank');
+    } finally {
+      btnDownloadSingle.disabled = false;
+      btnDownloadSingle.innerHTML = `
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+        Télécharger cette photo
+      `;
+    }
+  }
+
+  // Événements Lightbox
+  btnClose.addEventListener('click', closeLightbox);
+  btnNext.addEventListener('click', (e) => { e.stopPropagation(); showNext(); });
+  btnPrev.addEventListener('click', (e) => { e.stopPropagation(); showPrev(); });
+  btnDownloadSingle.addEventListener('click', (e) => { e.stopPropagation(); downloadSinglePhoto(); });
+
+  lightbox.addEventListener('click', (e) => {
+    if (e.target === lightbox) closeLightbox();
+  });
+
+  window.addEventListener('keydown', (e) => {
+    if (!lightbox.classList.contains('active')) return;
+    if (e.key === 'Escape') closeLightbox();
+    if (e.key === 'ArrowRight') showNext();
+    if (e.key === 'ArrowLeft') showPrev();
+  });
+
+  // Swipe tactile
+  let touchStartX = 0;
+  lightbox.addEventListener('touchstart', e => { touchStartX = e.changedTouches[0].screenX; }, { passive: true });
+  lightbox.addEventListener('touchend', e => {
+    const diff = e.changedTouches[0].screenX - touchStartX;
+    if (Math.abs(diff) > 40) {
+      if (diff > 0) showPrev();
+      else showNext();
+    }
+  }, { passive: true });
+
+  // Récupération Firestore en temps réel
+  db.collection('photos').orderBy('createdAt', 'desc').onSnapshot(snapshot => {
+    photos = snapshot.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(p => !!p.url);
+
+    renderGallery();
+  }, err => {
+    console.error('Erreur Firestore:', err);
+    countEl.textContent = 'Erreur de connexion';
+  });
+})();
+</script>
+</body>
+</html>
